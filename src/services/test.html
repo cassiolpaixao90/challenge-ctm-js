@@ -1,0 +1,263 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta http-equiv="Content-Type" content="text/html;charset=utf-8" />
+    <title>Problem Three: Merchant's Guide to the Galaxy</title>
+    <script type="text/javascript">
+      // 常量-罗马与阿拉伯映射，基础的转换规则
+      const ROMAN_VALS = {
+        I: 1,
+        V: 5,
+        X: 10,
+        L: 50,
+        C: 100,
+        D: 500,
+        M: 1000
+      };
+      // 常量-罗马字符的基础字符
+      const ROMAN_KEYS = ['I', 'V', 'X', 'L', 'C', 'D', 'M'];
+      // 存储罗马别名/代号：[别名1，别名2...]，别名与ROMAN_KEYS代替字符索引对应
+      let romanAlias = new Array(ROMAN_KEYS.length);
+      // 存储物品单价,{物品名1:单价,物品名2:单价,...}
+      let priceVals = {};
+
+      /**
+       * 检验文本是否符合罗马数字规则
+       * :符合罗马字符；单个字符连续重复不超过三次；偶数位可作减数，被减数不超过下一个减数
+       * @author slzs
+       * @param val 字符串
+       * @return true 是罗马数字
+       */
+      function checkRoman(val) {
+        if (
+          !val.match(/[^IVXLCDM]/i) && // 罗马字符校验
+          !val.match(/(\w)\1{3,}/i) // 校验禁止重复3次以上
+        ) {
+          /** 减数策略校验 **/
+          let lastCIX = ROMAN_KEYS.indexOf(val.charAt(0));
+          for (let i = 1; i < val.length; i++) {
+            let curCIX = ROMAN_KEYS.indexOf(val.charAt(i));
+            if (
+              curCIX > lastCIX && // 当前位大于上一位数值时作减法运算
+              (lastCIX % 2 > 0 || curCIX - lastCIX > 2) // 减法规则(仅偶数位参与减数且被减数不超过2位)
+            ) {
+              return false;
+            }
+            lastCIX = curCIX;
+          }
+          return true;
+        }
+        return false;
+      }
+
+      /**
+       * 罗马数字转换为阿拉伯数字
+       * :通过ROMAN_VALS转换为数值，左>右的数值相加，右>左的数值相减
+       * @author slzs
+       * @param val 罗马数字格式字符
+       * @return int 数值
+       */
+      function romanToInt(val) {
+        let result = 0;
+        let subVal = ROMAN_VALS[val.charAt(0)]; // 可能的减数值
+        let lastVal = subVal; // 记录上次运算位
+        for (let i = 1; i < val.length; i++) {
+          let curChar = val.charAt(i);
+          let curVal = ROMAN_VALS[curChar];
+          if (curVal == lastVal) subVal += curVal;
+          // 可能为减数，减数累加
+          else if (curVal < lastVal) {
+            result += subVal; // 当前值小于之前值，表示前位非减数，将前位数值合并
+            subVal = curVal; // 当前位设置为可能的减数
+          } else {
+            subVal = curVal - subVal; // 确定为减数
+          }
+          lastVal = curVal;
+        }
+        result += subVal;
+        return result;
+      }
+
+      /**
+       * 代号/别名转换罗马字符
+       * :代号数组romanAlias与罗马字符数组ROMAN_KEYS相同索引值替换
+       * @author slzs
+       * @param aliasTxt 自定义别名字符串
+       * @return 对应罗马数字字符
+       */
+      function aliasToRoman(aliasTxt) {
+        let numAlias = aliasTxt.toUpperCase().split(/\s+/);
+        numAlias[0] = ROMAN_KEYS[romanAlias.indexOf(numAlias[0])];
+        return numAlias.reduce(
+          (av, cv, ix) => av + ROMAN_KEYS[romanAlias.indexOf(cv)]
+        );
+      }
+
+      /**
+       * 解析别名设置命令，返回匹配结果{status,message}
+       * 如果命令格式匹配，status为true，保存别名
+       */
+      function aliasCMD(cmd) {
+        let res = { status: false, message: '' };
+        let matArr = cmd.match(/([a-z]+)\s+is\s+([IVXLCDM]+)\s*$/i);
+        if (matArr) {
+          let ix = ROMAN_KEYS.indexOf(matArr[2].toUpperCase());
+          if (ix >= 0) {
+            romanAlias[ix] = matArr[1].toUpperCase();
+          } else {
+            res.message = `<br/> ${cmd} -> <b>请指定单个罗马数字</b>`;
+          }
+          res.status = true;
+        }
+        return res;
+      }
+
+      /**
+       * 解析价格设置命令，返回匹配结果{status,message}
+       * 如果命令格式匹配，status为true,保存物品单价
+       */
+      function priceCMD(cmd) {
+        let res = { status: false, message: '' };
+        let matArr = cmd.match(
+          /(.*)\s+([^\s]+)\s+?is\s+([0-9]+)\s+Credits\s*$/i
+        );
+        if (matArr) {
+          // 标价命令
+          let romanTxt = aliasToRoman(matArr[1]);
+          if (checkRoman(romanTxt)) {
+            let num = romanToInt(romanTxt);
+            priceVals[matArr[2].toUpperCase()] = matArr[3] / num; // 此处忽略了小数精度问题
+          } else {
+            res.message = `<br/> ${cmd} -> <b>数量格式不正确，请调整指令</b>`;
+          }
+          res.status = true;
+        }
+        return res;
+      }
+
+      /**
+       * 解析询问别名转换数值的命令，返回问询结果{status,message}
+       * 如果命令格式匹配，status为true,message为计算数值
+       */
+      function howMuchCMD(cmd) {
+        let res = { status: false, message: '' };
+        let matArr = cmd.match(/how\s+much\s+is\s+(.*?)\s*\?\s*$/i);
+        if (matArr) {
+          // 数量询问命令
+          let romanTxt = aliasToRoman(matArr[1]);
+          if (checkRoman(romanTxt)) {
+            let num = romanToInt(romanTxt);
+            res.message = `<br/> ${cmd} -> <b>${matArr[1]} is ${num}</b>`;
+          } else {
+            res.message = `<br/> ${cmd} -> <b>数量格式不正确，请调整指令</b>`;
+          }
+          res.status = true;
+        }
+        return res;
+      }
+
+      /**
+       * 解析询问物品价格的命令，返回问询结果{status,message}
+       * 如果命令格式匹配，status为true,message为 价格=单价*数量
+       */
+      function howManyCMD(cmd) {
+        let res = { status: false, message: '' };
+        let matArr = cmd.match(
+          /how\s+many\sCredits\s+is\s+(.*)\s+([^\s]+?)\s*\?\s*$/i
+        );
+        if (matArr) {
+          // 价格询问命令
+          let romanTxt = aliasToRoman(matArr[1]);
+          if (checkRoman(romanTxt)) {
+            let num = romanToInt(romanTxt);
+            let price = priceVals[matArr[2].toUpperCase()];
+            if (price) {
+              res.message = `<br/> ${cmd} -> <b>${matArr[1]} ${
+                matArr[2]
+              } is ${price * num} Credits</b>`;
+            } else {
+              res.message = `<br/> ${cmd} -> <b>I don't know the price of ${
+                matArr[2]
+              }</b>`;
+            }
+            res.status = true;
+          } else {
+            message = `<br/> ${cmd} -> <b>数量格式不正确，请调整指令</b>`;
+          }
+        }
+        return res;
+      }
+
+      /**
+       * 解析一条命令，逐个匹配支持的命令格式，并输出结果
+       * @author slzs
+       */
+      function readCommand(cmd) {
+        let message;
+        try {
+          if (cmd && cmd.trim()) {
+            let cmdMatch = [aliasCMD, priceCMD, howMuchCMD, howManyCMD];
+            let result;
+            for (let i = 0; i < cmdMatch.length; i++) {
+              result = cmdMatch[i](cmd);
+              if (result.status) break;
+            }
+            message = result.status
+              ? result.message
+              : `<br/> ${cmd} -> <b>I have no idea what you are talking about</b>`;
+          }
+        } catch (e) {
+          message = `<br/> ${cmd} -> <b>I have no idea what you are talking about</b>`;
+        }
+        return message;
+      }
+
+      /**
+       * 解析一批命令，通过\n拆分为单独命令并执行
+       * @author slzs
+       */
+      function readCommandList() {
+        let val = input.value;
+        if (val && val.trim()) {
+          let commandArray = val.split('\n');
+          let message = '<b>Test Output:</b>';
+          commandArray.forEach(cmd => {
+            // 逐行解析
+            message += readCommand(cmd);
+          });
+
+          resDiv.innerHTML = message;
+        } else {
+          resDiv.innerHTML = '没有内容，请输入指令';
+        }
+      }
+    </script>
+  </head>
+  <textarea id="input" rows="15" cols="100">
+glob is I
+prok is V
+pish is X
+tegj is L
+glob glob Silver is 34 Credits
+glob prok Gold is 57800 Credits
+pish pish Iron is 3910 Credits
+how much is pish tegj glob glob ?
+how many Credits is glob prok Silver ?
+how many Credits is glob prok Gold ?
+how many Credits is glob prok Iron ?
+how much wood could a woodchuck chuck if a woodchuck could chuck wood ?</textarea
+  >
+  <br />
+  <button onclick="readCommandList()">Submit</button>
+
+  <div id="resDiv">
+    请编辑文本框中的测试命令，点击按钮查看结果。
+    <br />
+    Please edit the text and click the submit button.
+  </div>
+</html>
+
+--------------------- 作者：slzs_zyt 来源：CSDN
+原文：https://blog.csdn.net/slzs_zyt/article/details/82625278
+版权声明：本文为博主原创文章，转载请附上博文链接！
+https://blog.csdn.net/slzs_zyt/article/details/82625278

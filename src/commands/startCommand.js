@@ -1,6 +1,6 @@
-const path = require("path");
-const Streams = require("../utils/streams");
-const fs = new Streams(require("fs"));
+const path = require('path');
+const Streams = require('../utils/streams');
+const fs = new Streams(require('fs'));
 
 class StartCommand {
   constructor(value) {
@@ -8,25 +8,21 @@ class StartCommand {
   }
 
   get name() {
-    return `input ${this.value}`;
+    return this.value;
   }
 
   execute() {
-    const file = path.resolve(path.join("src", "storage", this.value));
-
+    const file = path.resolve(path.join('src', 'storage', `${this.value}.txt`));
+    console.log('file', file);
     const result = (error, contents) => {
       if (error) {
-        console.log("\x07");
-        console.error(error);
-        process.exit(0);
+        throw new Error(`Can only read .txt files.`);
       }
-
-      console.log("reading file...");
-      console.log(contents);
+      console.log('reading file...');
+      console.log('contents', contents);
       process.exit(0);
     };
-
-    fs.readFile(file, "UTF-8", result);
+    fs.readFile(file, 'UTF-8', result);
   }
 }
 
